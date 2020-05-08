@@ -89,7 +89,15 @@ namespace LogikUI.File
                 return new Vector2i(x, y);
             }
 
+            //HACK: What does "Could not find schema information for the element '<element>'." for every element mean!?
+
+            XmlSchemaSet schema = new XmlSchemaSet();
+            // currentDirectory = ~\bin\Debug\netcoreapp3.1
+            string path = Directory.GetCurrentDirectory() + "\\..\\..\\..\\File";
+            schema.Add("http://www.w3.org/2001/XMLSchema", path + "\\structure.xsd");
+
             XmlDocument doc = new XmlDocument();
+            doc.Schemas = schema;
             XmlReader? reader;
 
             XmlReaderSettings settings = new XmlReaderSettings();
@@ -210,20 +218,120 @@ namespace LogikUI.File
         {
             if (IsNew) throw new InvalidOperationException("The file is new.");
 
-            throw new NotImplementedException();
+            //FIXME: delete file before save
+            
+            Save(filename);
+
         }
 
-        /// <summary>
-        /// Writes the project to a specified file.
-        /// </summary>
-        /// <param name="filename">The path of the new project file.</param>
+        // <summary>
+        // Writes the project to a specified file.
+        // </summary>
+        // <param name="filename">The path of the new project file.</param>
         public static void Save(string filename)
         {
-            throw new NotImplementedException();
-
-            // If successful...
+           
             IsNew = false;
             FileManager.filename = filename;
+
+            try
+            {
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.Indent = true;
+                settings.NewLineOnAttributes = true;
+
+                XmlWriter xmlWriter = XmlWriter.Create(filename, settings);
+                xmlWriter.WriteStartDocument();
+                xmlWriter.WriteStartElement("circuit");
+
+                #region Parse Wires
+
+                xmlWriter.WriteStartElement("wires");
+                foreach (var wire in Wires)
+                {
+
+                    xmlWriter.WriteStartElement("wire");
+
+                    //from
+                    xmlWriter.WriteStartElement("from");
+                    xmlWriter.WriteAttributeString("x", wire.Pos.X.ToString());
+                    xmlWriter.WriteAttributeString("y", wire.Pos.Y.ToString());
+                    xmlWriter.WriteEndElement();
+
+                    //to
+                    xmlWriter.WriteStartElement("to");
+                    xmlWriter.WriteAttributeString("x", wire.EndPos.X.ToString());
+                    xmlWriter.WriteAttributeString("y", wire.EndPos.Y.ToString());
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteEndElement();
+
+                }
+               
+                xmlWriter.WriteEndElement();
+
+                #endregion
+
+                #region Parse Components
+
+                xmlWriter.WriteStartElement("components");
+
+                foreach (var component in Components)
+                {
+                    xmlWriter.WriteStartElement("component");
+                    
+                    xmlWriter.WriteEndElement();
+                }
+
+                xmlWriter.WriteEndElement();
+
+                #endregion
+
+                #region Parse Labels
+
+                xmlWriter.WriteStartElement("labels");
+
+                foreach (var text_label in Labels)
+                {
+                    xmlWriter.WriteStartElement("label");
+                    xmlWriter.WriteAttributeString("size", text_label.TextSize.ToString());
+
+                    //text
+                    xmlWriter.WriteStartElement("text");
+                    xmlWriter.WriteString(text_label.Text);
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteEndElement();
+                }
+                
+                xmlWriter.WriteEndElement();
+
+                #endregion
+
+                xmlWriter.WriteEndElement();
+                xmlWriter.WriteEndDocument();
+                xmlWriter.Close();
+            }
+            catch (Exception e)
+            {
+                if (e is XmlException || e is InvalidOperationException)
+                {
+                    MessageDialog md = new MessageDialog(null, DialogFlags.DestroyWithParent, MessageType.Info, ButtonsType.Ok, "Unable to save project due to XML error.");
+                    md.Run();
+                    md.Dispose();
+
+                    throw new ArgumentException("Failed to parse to XML.", e);
+                } 
+                else
+                {
+                    MessageDialog md = new MessageDialog(null, DialogFlags.DestroyWithParent, MessageType.Info, ButtonsType.Ok, "Unable to save project due to access/write error.");
+                    md.Run();
+                    md.Dispose();
+
+                    throw new ArgumentException($"Failed to save to { filename }.", e);
+                }
+            }
+
         }
     }
 }
