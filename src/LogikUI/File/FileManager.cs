@@ -12,11 +12,48 @@ using LogikUI.Simulation.Gates;
 
 namespace LogikUI.File
 {
+    /* FILE STRUCTURE:
+     *  circuit
+     *    wires
+     *      wire
+     *        from < -x: int, y: int
+     *        to < -x: int, y: int
+     *      ...
+     *    components
+     *      component
+     *        type
+     *          "buffer" | "and" | "or" | "xor"
+     *        location < -x: int, y: int
+     *        orientation
+     *          "north" | "east" | "south" | "west"
+     *      ...
+     *    labels
+     *      label < -size: int(10, 100)
+     *        location < -x: int, y: int
+     *        text
+     *          <string>
+     *      ...
+     */
+
     /// <summary>
     /// Handles writing and parsing of project files.
     /// </summary>
     static class FileManager
     {
+        private static Dictionary<string, ComponentType> types = new Dictionary<string, ComponentType>()
+        {
+            { "buffer", ComponentType.Buffer },
+            { "and", ComponentType.And },
+            { "or", ComponentType.Or },
+            { "xor", ComponentType.Xor },
+        };
+        private static Dictionary<string, Circuit.Orientation> orientations = new Dictionary<string, Circuit.Orientation>()
+        {
+            { "north", Circuit.Orientation.North },
+            { "south", Circuit.Orientation.South },
+            { "west", Circuit.Orientation.West },
+            { "east", Circuit.Orientation.East },
+        };
         private static string filename;
 
         /// <summary>
@@ -24,7 +61,7 @@ namespace LogikUI.File
         /// </summary>
         public static bool IsNew { get; private set; } = true;
         public static List<Wire> Wires { get; set; } = new List<Wire>();
-        public static List<IInstance> Components { get; set; } = new List<IInstance>();
+        public static List<InstanceData> Components { get; set; } = new List<InstanceData>();
         public static List<TextLabel> Labels { get; set; } = new List<TextLabel>();
 
         private static void ValidationCallBack(object sender, ValidationEventArgs args)
@@ -68,27 +105,6 @@ namespace LogikUI.File
 
                 doc.Load(reader);
 
-                /* STRUCTURE:
-                 *  circuit
-                 *    wires
-                 *      wire
-                 *        from < -x: int, y: int
-                 *        to < -x: int, y: int
-                 *      ...
-                 *    components
-                 *      component
-                 *        type
-                 *          "and" | "dFlipFlop" | "not"
-                 *        location < -x: int, y: int
-                 *        orientation
-                 *          "north" | "east" | "south" | "west"...
-                 *    labels
-                 *      label < -size: int(10, 100)
-                 *        location < -x: int, y: int
-                 *        text
-                 *          <string>...
-                 */
-
                 #region Parse Wires
 
                 foreach (var _wire in doc.SelectNodes("/circuit/wires"))
@@ -128,25 +144,11 @@ namespace LogikUI.File
                     {
                         XmlNode component = ((XmlNode)_component).FirstChild;
 
-                        IInstance ins;
-                        switch (component.SelectSingleNode("type").InnerText)
-                        {
-                            case "and": ins = default(AndGateInstance); break;
-                            case "dFlipFlop": ins = default(DFlipFlopInstance); break;
-                            default/* case "not" */: ins = default(NotGateInstance); break;
-                        }
-
+                        ComponentType type = types[component.SelectSingleNode("type").InnerText];
                         Vector2i location = getPos(component.SelectSingleNode("location"));
+                        Circuit.Orientation orientation = orientations[component.SelectSingleNode("orientation").InnerText];
 
-                        Circuit.Orientation orientation = Circuit.Orientation.North;
-                        switch (component.SelectSingleNode("orientation").InnerText)
-                        {
-                            case "south": orientation = Circuit.Orientation.South; break;
-                            case "east": orientation = Circuit.Orientation.East; break;
-                            case "west": orientation = Circuit.Orientation.West; break;
-                        }
-
-                        Components.Add(ins.Create(location, orientation));
+                        Components.Add(InstanceData.Create(type, location, orientation));
 
                         // FIXME: Update list of gates.
                     }
@@ -163,9 +165,7 @@ namespace LogikUI.File
                         XmlNode label = ((XmlNode)_label).FirstChild;
 
                         int size = int.Parse(label.Attributes["size"].InnerText);
-
                         Vector2i location = getPos(label.SelectSingleNode("location"));
-
                         string text = label.SelectSingleNode("text").InnerText;
 
                         Labels.Add(new TextLabel(location, text, size));
@@ -181,7 +181,7 @@ namespace LogikUI.File
             }
             catch (Exception e)
             {
-                if (e is XmlException || e is XPathException || e is InvalidProjectDataException || e is XmlSchemaException)
+                if (e is XmlException || e is XPathException || e is InvalidProjectDataException || e is XmlSchemaException || e is KeyNotFoundException)
                 {
                     MessageDialog md = new MessageDialog(null, DialogFlags.DestroyWithParent, MessageType.Info, ButtonsType.Ok, "Logik is unable to read file. Please choose a valid project file.");
                     md.Run();

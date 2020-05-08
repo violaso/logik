@@ -9,12 +9,7 @@ using LogikUI.Component;
 using LogikUI.Hierarchy;
 using LogikUI.Circuit;
 using LogikUI.Util;
-<<<<<<< HEAD
-=======
-using System.Globalization;
-using System.Reflection;
 using LogikUI.Interop;
->>>>>>> upstream/master
 using LogikUI.Simulation;
 using LogikUI.Toolbar;
 using LogikUI.Simulation.Gates;
